@@ -1,20 +1,38 @@
 plugins {
-    id("java")
+    java
+    application
 }
-
-group = "site.meowcat"
-version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation("com.discord4j:discord4j-core:3.3.0")
+
+    // Environment variable loader
+    implementation("io.github.cdimascio:dotenv-java:3.0.0")
+
+    // Logging (slf4j)
+    implementation("org.slf4j:slf4j-api:2.0.17")
+    implementation("org.slf4j:slf4j-simple:2.0.17")
+
+    // HTTP client
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+
+    // JSON parser
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.20.1")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.20.1")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.20")
 }
 
-tasks.test {
-    useJUnitPlatform()
+application {
+    // Fully qualified main class
+    mainClass.set("site.meowcat.Main")
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
 }

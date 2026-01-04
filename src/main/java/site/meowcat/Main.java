@@ -1,5 +1,4 @@
 package site.meowcat;
-import com.discord4j.*;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
@@ -14,15 +13,20 @@ import reactor.core.publisher.Mono;
 public class Main {
     public static void main(String[] args) throws InterruptedException {
         Dotenv dotenv = Dotenv.load(); // load a .env file containing the token
-        String token = dotenv.get("DISCORD_TOKEN"); // read the token from the .env we just loaded
+        String token = dotenv.get("DISCORD_TOKEN");
+
+        System.out.println("Token loaded: '" + token + "'");
         if (token == null || token.isBlank()) {
-            throw new IllegalStateException("DISCORD_TOKEN IS MISSING"); // throw this in case of missing token
+            throw new IllegalStateException(); // throw this in case of missing token
         }
 
         DiscordClient.create(token)
                 .withGateway(client ->
                         client.on(MessageCreateEvent.class, event -> {
                             Message message = event.getMessage();
+                            if (message.getAuthor().isPresent()) {
+                                System.out.println("Message from: " + message.getAuthor());
+                            }
 
                             if (message.getContent().equalsIgnoreCase("!ping")) {
                                 return message.getChannel()
