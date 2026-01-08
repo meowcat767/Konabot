@@ -81,6 +81,6 @@ public class Kick implements Command {
                                 .onErrorResume(e -> channel.createMessage("❌ Failed to kick user: " + e.getMessage()).then());
                     })
                     .orElseGet(() -> channel.createMessage("❌ This command can only be used in a server.").then());
-        }).then(); // Top-level Mono<Void>
+        }).then(); // Top-Level Mono<Void>
     }
 }

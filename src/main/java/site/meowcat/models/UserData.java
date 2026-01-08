@@ -2,6 +2,10 @@ package site.meowcat.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+/**
+ * hold user data shit here
+ */
+
 public class UserData {
     private long xp = 0;
     private int level = 0;
@@ -29,9 +33,9 @@ public class UserData {
     }
 
     public int calculateLevel() {
-        // Simple formula: level = floor(sqrt(xp / 100))
-        // Or more classic: XP needed = 100 * (level ^ 1.5)
-        // Let's use: level = (int) (0.1 * sqrt(xp))
+        // Simple formula: Level = floor(sqrt(xp / 100))
+        // Or more classic: XP needed = 100 * (Level ^ 1.5)
+        // Let's use: Level = (int) (0.1 * sqrt(xp))
         return (int) (0.1 * Math.sqrt(xp));
     }
     

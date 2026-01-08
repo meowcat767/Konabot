@@ -1,6 +1,8 @@
 package site.meowcat.commands;
 
+import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.message.MessageCreateEvent;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import site.meowcat.LevelManager;
 import site.meowcat.models.UserData;
@@ -25,19 +27,38 @@ public class Leaderboard implements Command {
             .limit(10)
             .collect(Collectors.toList());
 
-        StringBuilder sb = new StringBuilder("🏆 **Leaderboard**\n");
-        int rank = 1;
-        for (Map.Entry<String, UserData> entry : sorted) {
-            sb.append(String.format("%d. <@%s> - Level %d (%d XP)\n", 
-                rank++, entry.getKey(), entry.getValue().getLevel(), entry.getValue().getXp()));
-        }
-
         if (sorted.isEmpty()) {
-            sb.append("No data yet!");
+            return event.getMessage().getChannel()
+                .flatMap(channel -> channel.createMessage("🏆 **Leaderboard**\nNo data yet!"))
+                .then();
         }
 
-        return event.getMessage().getChannel()
-            .flatMap(channel -> channel.createMessage(sb.toString()))
+        return Flux.fromIterable(sorted)
+            .concatMap(entry -> event.getClient().getUserById(Snowflake.of(entry.getKey()))
+                .map(user -> user.getUsername())
+                .onErrorReturn("Unknown User (" + entry.getKey() + ")")
+                .map(username -> new LeaderboardEntry(username, entry.getValue())))
+            .collectList()
+            .flatMap(entries -> {
+                StringBuilder sb = new StringBuilder("🏆 **Leaderboard**\n");
+                for (int i = 0; i < entries.size(); i++) {
+                    LeaderboardEntry entry = entries.get(i);
+                    sb.append(String.format("%d. %s - Level %d (%d XP)\n", 
+                        i + 1, entry.username, entry.data.getLevel(), entry.data.getXp()));
+                }
+                return event.getMessage().getChannel()
+                    .flatMap(channel -> channel.createMessage(sb.toString()));
+            })
             .then();
+    }
+
+    private static class LeaderboardEntry {
+        final String username;
+        final UserData data;
+
+        LeaderboardEntry(String username, UserData data) {
+            this.username = username;
+            this.data = data;
+        }
     }
 }

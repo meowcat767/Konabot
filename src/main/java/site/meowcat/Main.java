@@ -1,10 +1,12 @@
 package site.meowcat;
+import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 
 import discord4j.core.object.entity.Message;
+import discord4j.core.object.entity.channel.MessageChannel;
 import io.github.cdimascio.dotenv.*;
 import io.github.cdimascio.dotenv.Dotenv;
 import reactor.core.publisher.Mono;
@@ -13,8 +15,11 @@ import reactor.core.publisher.Mono;
 import site.meowcat.commands.Ban;
 import site.meowcat.commands.Command;
 import site.meowcat.commands.Kick;
+import site.meowcat.commands.Level;
 import site.meowcat.commands.Rank;
 import site.meowcat.commands.Leaderboard;
+import site.meowcat.commands.SetLevelChannel;
+import site.meowcat.models.GuildSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +31,9 @@ public class Main {
         commands.add(new Kick());
         commands.add(new Ban());
         commands.add(new Rank());
+        commands.add(new Level());
         commands.add(new Leaderboard());
+        commands.add(new SetLevelChannel());
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -47,8 +54,20 @@ public class Main {
                                 boolean leveledUp = LevelManager.addXp(userId);
                                 if (leveledUp) {
                                     int newLevel = LevelManager.getUserData(userId).getLevel();
-                                    message.getChannel()
-                                            .flatMap(channel -> channel.createMessage("🎉 Congratulations <@" + userId + ">, you've reached level **" + newLevel + "**!"))
+                                    
+                                    Mono<MessageChannel> channelMono;
+                                    String guildId = event.getGuildId().map(Snowflake::asString).orElse(null);
+                                    GuildSettings settings = guildId != null ? LevelManager.getGuildSettings(guildId) : null;
+                                    
+                                    if (settings != null && settings.getLevelUpChannelId() != null) {
+                                        channelMono = event.getClient().getChannelById(Snowflake.of(settings.getLevelUpChannelId()))
+                                            .cast(MessageChannel.class);
+                                    } else {
+                                        channelMono = message.getChannel();
+                                    }
+                                    
+                                    channelMono
+                                            .flatMap(channel -> channel.createMessage("🎉 Congratulations <@" + userId + ">, you've reached Level **" + newLevel + "**!"))
                                             .subscribe();
                                 }
                             }
