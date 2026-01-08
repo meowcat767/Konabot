@@ -17,18 +17,15 @@ public class SetLevelChannel implements Command {
     }
 
     @Override
+    public Permission getDefaultPermission() {
+        return Permission.MANAGE_GUILD;
+    }
+
+    @Override
     public Mono<Void> execute(MessageCreateEvent event) {
         Message message = event.getMessage();
         
         return message.getAuthorAsMember().flatMap(member -> {
-            // Check for MANAGE_GUILD or ADMINISTRATOR permission
-            return member.getBasePermissions().flatMap(permissions -> {
-                if (!permissions.contains(Permission.MANAGE_GUILD) && !permissions.contains(Permission.ADMINISTRATOR)) {
-                    return message.getChannel().flatMap(channel -> 
-                        channel.createMessage("❌ You need the `Manage Server` permission to use this command.")
-                    ).then();
-                }
-
                 String guildId = event.getGuildId().map(Snowflake::asString).orElse(null);
                 if (guildId == null) {
                     return message.getChannel().flatMap(channel -> 
@@ -74,7 +71,6 @@ public class SetLevelChannel implements Command {
                 return message.getChannel().flatMap(channel -> 
                     channel.createMessage("✅ Level-up messages will now be sent to <#" + channelIdStr + ">.")
                 ).then();
-            });
         });
     }
 }

@@ -19,6 +19,11 @@ public class Ban implements Command {
     }
 
     @Override
+    public Permission getDefaultPermission() {
+        return Permission.BAN_MEMBERS;
+    }
+
+    @Override
     public Mono<Void> execute(MessageCreateEvent event) {
         Message message = event.getMessage();
         String content = message.getContent();
@@ -28,10 +33,6 @@ public class Ban implements Command {
         String reason = parts.length >= 3 ? parts[2] : "No reason provided.";
         return message.getAuthorAsMember().flatMap(author ->
                 message.getGuild().flatMap(guild -> {
-                    // perm check
-                    if (!author.getBasePermissions().block().contains(Permission.BAN_MEMBERS)) {
-                        return channel.createMessage("❌ You don't have permissions to ban this member!");
-                    }
                     // must mention someone... check
                     if (message.getUserMentions().isEmpty()) {
                         return channel.createMessage("❌ You must mention someone!");

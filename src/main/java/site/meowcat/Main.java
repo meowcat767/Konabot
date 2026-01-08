@@ -7,6 +7,7 @@ import discord4j.core.event.domain.message.MessageCreateEvent;
 
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
+import discord4j.rest.util.Permission;
 import io.github.cdimascio.dotenv.*;
 import io.github.cdimascio.dotenv.Dotenv;
 import reactor.core.publisher.Mono;
@@ -19,6 +20,7 @@ import site.meowcat.commands.Level;
 import site.meowcat.commands.Rank;
 import site.meowcat.commands.Leaderboard;
 import site.meowcat.commands.SetLevelChannel;
+import site.meowcat.commands.SetCommandPermission;
 import site.meowcat.models.GuildSettings;
 
 import java.util.ArrayList;
@@ -34,6 +36,7 @@ public class Main {
         commands.add(new Level());
         commands.add(new Leaderboard());
         commands.add(new SetLevelChannel());
+        commands.add(new SetCommandPermission());
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -78,7 +81,36 @@ public class Main {
 
                             for (Command command : commands) {
                                 if (message.getContent().toLowerCase().startsWith(command.getTrigger().toLowerCase())) {
-                                    return command.execute(event);
+                                    return message.getAuthorAsMember().flatMap(member -> {
+                                        String guildId = event.getGuildId().map(Snowflake::asString).orElse(null);
+                                        Permission requiredPermission = command.getDefaultPermission();
+                                        
+                                        if (guildId != null) {
+                                            GuildSettings settings = LevelManager.getGuildSettings(guildId);
+                                            String overriddenPerm = settings.getCommandPermissions().get(command.getTrigger());
+                                            if (overriddenPerm != null) {
+                                                try {
+                                                    requiredPermission = Permission.valueOf(overriddenPerm);
+                                                } catch (IllegalArgumentException e) {
+                                                    // Invalid permission name, fallback to default
+                                                }
+                                            }
+                                        }
+
+                                        if (requiredPermission != null) {
+                                            Permission finalRequiredPermission = requiredPermission;
+                                            return member.getBasePermissions().flatMap(permissions -> {
+                                                if (!permissions.contains(finalRequiredPermission) && !permissions.contains(Permission.ADMINISTRATOR)) {
+                                                    return message.getChannel().flatMap(channel -> 
+                                                        channel.createMessage("❌ You don't have the required permission: `" + finalRequiredPermission.name() + "`")
+                                                    ).then();
+                                                }
+                                                return command.execute(event);
+                                            });
+                                        }
+
+                                        return command.execute(event);
+                                    });
                                 }
                             }
 

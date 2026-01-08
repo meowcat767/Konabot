@@ -14,6 +14,11 @@ public class Kick implements Command {
     }
 
     @Override
+    public Permission getDefaultPermission() {
+        return Permission.KICK_MEMBERS;
+    }
+
+    @Override
     public Mono<Void> execute(MessageCreateEvent event) {
         Message message = event.getMessage();
         String content = message.getContent();
@@ -27,11 +32,6 @@ public class Kick implements Command {
 
             return message.getGuildId()
                     .map(guildId -> {
-
-                        // Author permission check
-                        if (!author.getBasePermissions().block().contains(Permission.KICK_MEMBERS)) {
-                            return channel.createMessage("❌ You don't have permission to kick members.").then();
-                        }
 
                         // Check user mention
                         if (message.getUserMentions().isEmpty()) {
