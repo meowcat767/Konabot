@@ -10,13 +10,16 @@ public class Kick implements Command {
 
     @Override
     public String getTrigger() {
-        return "!kick";
+        return ">k";
     }
 
     @Override
     public Mono<Void> execute(MessageCreateEvent event) {
         Message message = event.getMessage();
-
+        String content = message.getContent();
+        // Split into: >k <mention> <reason :op:>
+        String[] parts = content.split("\\s+", 3);
+        String reason = parts.length >= 3 ? parts[2] : "No reason provided.";
         MessageChannel channel = message.getChannel().block();
         if (channel == null) return Mono.empty();
 
@@ -67,7 +70,7 @@ public class Kick implements Command {
                                                                                     }
 
                                                                                     // Kick target
-                                                                                    return target.kick("Kicked by bot")
+                                                                                    return target.kick(reason)
                                                                                             .doOnSuccess(unused -> System.out.println("Kicked: " + target.getUsername()))
                                                                                             .doOnError(e -> System.err.println("Kick failed: " + e.getMessage()))
                                                                                             .then(channel.createMessage("✅ User has been kicked!"));
