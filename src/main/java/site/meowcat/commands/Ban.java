@@ -36,8 +36,16 @@ public class Ban implements Command {
                     if (message.getUserMentions().isEmpty()) {
                         return channel.createMessage("❌ You must mention someone!");
                     }
+
+
+
                     // lowk my first time just using "var", lets hope it works...
                     var user  = message.getUserMentions().get(0);
+                    // mate i will not ban myself
+                    if (user.getId().equals(event.getClient().getSelfId())) {
+                        return channel.createMessage("❌ I will not ban myself.").then();
+                    }
+
                     return guild.ban(user.getId(), spec ->
                                     spec.setReason(reason)
                                             .setDeleteMessageDays(1)
