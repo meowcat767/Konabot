@@ -10,7 +10,19 @@ import io.github.cdimascio.dotenv.Dotenv;
 import reactor.core.publisher.Mono;
 
 
+import site.meowcat.commands.Command;
+import site.meowcat.commands.Kick;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class Main {
+    private static final List<Command> commands = new ArrayList<>();
+
+    static {
+        commands.add(new Kick());
+    }
+
     public static void main(String[] args) throws InterruptedException {
         Dotenv dotenv = Dotenv.load(); // load a .env file containing the token
         String token = dotenv.get("DISCORD_TOKEN");
@@ -28,9 +40,16 @@ public class Main {
                                 System.out.println("Message from: " + message.getAuthor());
                             }
 
-                            if (message.getContent().equalsIgnoreCase("!ping")) {
+                            for (Command command : commands) {
+                                if (message.getContent().toLowerCase().startsWith(command.getTrigger().toLowerCase())) {
+                                    return command.execute(event);
+                                }
+                            }
+
+                            if (message.getContent().equalsIgnoreCase(">ping")) {
                                 return message.getChannel()
-                                        .flatMap(channel -> channel.createMessage("Pong!"));
+                                        .flatMap(channel -> channel.createMessage("Pong!"))
+                                        .then();
                             }
 
                             return Mono.empty();
