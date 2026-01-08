@@ -3,9 +3,14 @@ import discord4j.common.util.Snowflake;
 import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.GatewayDiscordClient;
+import discord4j.core.event.domain.interaction.ButtonInteractionEvent;
+import discord4j.core.event.domain.interaction.SelectMenuInteractionEvent;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 
+import discord4j.core.object.component.ActionRow;
+import discord4j.core.object.component.SelectMenu;
 import discord4j.core.object.entity.Message;
+import discord4j.core.object.entity.Role;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.rest.util.Permission;
 import io.github.cdimascio.dotenv.*;
@@ -27,7 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
-    private static final List<Command> commands = new ArrayList<>();
+    public static final List<Command> commands = new ArrayList<>();
 
     static {
         commands.add(new Kick());
@@ -49,8 +54,16 @@ public class Main {
         }
 
         DiscordClient.create(token)
-                .withGateway(client ->
-                        client.on(MessageCreateEvent.class, event -> {
+                .gateway()
+                .setEnabledIntents(discord4j.gateway.intent.IntentSet.all())
+                .withGateway(client -> {
+                        client.on(discord4j.core.event.domain.lifecycle.ReadyEvent.class, ready -> Mono.fromRunnable(() -> {
+                            System.out.println("Logged in as " + ready.getSelf().getUsername());
+                        })).subscribe();
+
+                        client.updatePresence(discord4j.core.object.presence.ClientPresence.online(discord4j.core.object.presence.ClientActivity.playing(">help for help"))).subscribe();
+
+                        Mono<Void> handleMessages = client.on(MessageCreateEvent.class, event -> {
                             Message message = event.getMessage();
                             if (message.getAuthor().isPresent() && !message.getAuthor().get().isBot()) {
                                 String userId = message.getAuthor().get().getId().asString();
@@ -84,9 +97,12 @@ public class Main {
                                     return message.getAuthorAsMember().flatMap(member -> {
                                         String guildId = event.getGuildId().map(Snowflake::asString).orElse(null);
                                         Permission requiredPermission = command.getDefaultPermission();
+                                        String requiredRoleId = null;
                                         
                                         if (guildId != null) {
                                             GuildSettings settings = LevelManager.getGuildSettings(guildId);
+                                            requiredRoleId = settings.getCommandRoles().get(command.getTrigger());
+                                            
                                             String overriddenPerm = settings.getCommandPermissions().get(command.getTrigger());
                                             if (overriddenPerm != null) {
                                                 try {
@@ -95,6 +111,19 @@ public class Main {
                                                     // Invalid permission name, fallback to default
                                                 }
                                             }
+                                        }
+
+                                        if (requiredRoleId != null) {
+                                            String finalRequiredRoleId = requiredRoleId;
+                                            boolean hasRole = member.getRoleIds().stream().anyMatch(id -> id.asString().equals(finalRequiredRoleId));
+                                            return member.getBasePermissions().flatMap(permissions -> {
+                                                if (!hasRole && !permissions.contains(Permission.ADMINISTRATOR)) {
+                                                    return message.getChannel().flatMap(channel -> 
+                                                        channel.createMessage("❌ You don't have the required role to use this command.")
+                                                    ).then();
+                                                }
+                                                return command.execute(event);
+                                            });
                                         }
 
                                         if (requiredPermission != null) {
@@ -121,6 +150,58 @@ public class Main {
                             }
 
                             return Mono.empty();
-                        }))
+                        }).then();
+
+                        Mono<Void> handleButtons = client.on(ButtonInteractionEvent.class, event -> {
+                            String customId = event.getCustomId();
+                            if (customId.startsWith("setperm:reset:")) {
+                                String trigger = customId.substring("setperm:reset:".length());
+                                String guildId = event.getInteraction().getGuildId().map(Snowflake::asString).orElse(null);
+                                if (guildId == null) return Mono.empty();
+
+                                GuildSettings settings = LevelManager.getGuildSettings(guildId);
+                                settings.getCommandRoles().remove(trigger);
+                                LevelManager.saveGuildData();
+
+                                return event.edit("✅ Permission for `" + trigger + "` has been reset to default.")
+                                    .withComponents(new ArrayList<>());
+                            }
+                            return Mono.empty();
+                        }).then();
+
+                        Mono<Void> handleSelectMenus = client.on(SelectMenuInteractionEvent.class, event -> {
+                            String customId = event.getCustomId();
+                            if (customId.equals("setperm:select_cmd")) {
+                                String trigger = event.getValues().get(0);
+                                return event.reply("Manage permissions for `" + trigger + "`:")
+                                    .withEphemeral(true)
+                                    .withComponents(
+                                        ActionRow.of(
+                                            SelectMenu.ofRole("setperm:role:" + trigger)
+                                                .withPlaceholder("Assign a role"),
+                                            discord4j.core.object.component.Button.danger("setperm:reset:" + trigger, "Reset to Default")
+                                        )
+                                    );
+                            } else if (customId.startsWith("setperm:role:")) {
+                                String trigger = customId.substring("setperm:role:".length());
+                                String roleId = event.getValues().get(0);
+                                String guildId = event.getInteraction().getGuildId().map(Snowflake::asString).orElse(null);
+                                if (guildId == null) return Mono.empty();
+
+                                GuildSettings settings = LevelManager.getGuildSettings(guildId);
+                                settings.getCommandRoles().put(trigger, roleId);
+                                LevelManager.saveGuildData();
+
+                                return event.getInteraction().getGuild().flatMap(guild -> 
+                                    guild.getRoleById(Snowflake.of(roleId))
+                                        .flatMap(role -> event.edit("✅ Permission for `" + trigger + "` has been set to role: **" + role.getName() + "**.")
+                                            .withComponents(new ArrayList<>()))
+                                );
+                            }
+                            return Mono.empty();
+                        }).then();
+
+                        return Mono.when(handleMessages, handleButtons, handleSelectMenus);
+                })
                 .block();
     }}

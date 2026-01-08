@@ -13,7 +13,7 @@ public class SetLevelChannel implements Command {
 
     @Override
     public String getTrigger() {
-        return ">setlevelchannel";
+        return ">setlevelchan";
     }
 
     @Override

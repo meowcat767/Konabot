@@ -6,6 +6,7 @@ import java.util.Map;
 public class GuildSettings {
     private String levelUpChannelId;
     private Map<String, String> commandPermissions = new HashMap<>();
+    private Map<String, String> commandRoles = new HashMap<>();
 
     public GuildSettings() {}
 
@@ -23,5 +24,13 @@ public class GuildSettings {
 
     public void setCommandPermissions(Map<String, String> commandPermissions) {
         this.commandPermissions = commandPermissions;
+    }
+
+    public Map<String, String> getCommandRoles() {
+        return commandRoles;
+    }
+
+    public void setCommandRoles(Map<String, String> commandRoles) {
+        this.commandRoles = commandRoles;
     }
 }

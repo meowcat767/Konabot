@@ -2,14 +2,16 @@ package site.meowcat.commands;
 
 import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.message.MessageCreateEvent;
+import discord4j.core.object.component.ActionRow;
+import discord4j.core.object.component.SelectMenu;
+import discord4j.core.object.component.SelectMenu.Option;
 import discord4j.core.object.entity.Message;
 import discord4j.rest.util.Permission;
 import reactor.core.publisher.Mono;
-import site.meowcat.LevelManager;
-import site.meowcat.models.GuildSettings;
+import site.meowcat.Main;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SetCommandPermission implements Command {
     @Override
@@ -25,43 +27,23 @@ public class SetCommandPermission implements Command {
     @Override
     public Mono<Void> execute(MessageCreateEvent event) {
         Message message = event.getMessage();
-        String content = message.getContent();
-        String[] parts = content.split("\\s+");
+        
+        List<Option> options = new ArrayList<>();
 
-        if (parts.length < 3) {
-            return message.getChannel().flatMap(channel ->
-                    channel.createMessage("❌ Usage: `>setperm <command_trigger> <permission_name>`\n" +
-                            "Example: `>setperm >b MANAGE_MESSAGES` or `>setperm >b DEFAULT` to reset.")
-            ).then();
+        for (Command cmd : Main.commands) {
+            String trigger = cmd.getTrigger();
+            // Don't allow setting permissions for setperm itself to avoid locking out
+            if (trigger.equals(getTrigger())) continue;
+            
+            options.add(Option.of(trigger, trigger));
         }
 
-        String targetTrigger = parts[1];
-        String permName = parts[2].toUpperCase();
-
-        String guildId = event.getGuildId().map(Snowflake::asString).orElse(null);
-        if (guildId == null) return Mono.empty();
-
-        GuildSettings settings = LevelManager.getGuildSettings(guildId);
-
-        if (permName.equals("DEFAULT")) {
-            settings.getCommandPermissions().remove(targetTrigger);
-            LevelManager.saveGuildData();
-            return message.getChannel().flatMap(channel ->
-                    channel.createMessage("✅ Permission for `" + targetTrigger + "` has been reset to default.")
-            ).then();
-        }
-
-        try {
-            Permission permission = Permission.valueOf(permName);
-            settings.getCommandPermissions().put(targetTrigger, permission.name());
-            LevelManager.saveGuildData();
-            return message.getChannel().flatMap(channel ->
-                    channel.createMessage("✅ Permission for `" + targetTrigger + "` has been set to `" + permission.name() + "`.")
-            ).then();
-        } catch (IllegalArgumentException e) {
-            return message.getChannel().flatMap(channel ->
-                    channel.createMessage("❌ Invalid permission name. Valid permissions include: `BAN_MEMBERS`, `KICK_MEMBERS`, `MANAGE_MESSAGES`, `ADMINISTRATOR`, etc.")
-            ).then();
-        }
+        return message.getChannel().flatMap(channel ->
+            channel.createMessage("Select a command to manage its permissions:")
+                .withComponents(ActionRow.of(
+                    SelectMenu.of("setperm:select_cmd", options)
+                        .withPlaceholder("Choose a command...")
+                ))
+        ).then();
     }
 }
