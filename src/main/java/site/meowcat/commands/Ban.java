@@ -57,4 +57,5 @@ public class Ban implements Command {
                             ));
                 })
         ).then();
-                        }}
+    }
+}

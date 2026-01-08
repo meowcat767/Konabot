@@ -10,8 +10,11 @@ import io.github.cdimascio.dotenv.Dotenv;
 import reactor.core.publisher.Mono;
 
 
+import site.meowcat.commands.Ban;
 import site.meowcat.commands.Command;
 import site.meowcat.commands.Kick;
+import site.meowcat.commands.Rank;
+import site.meowcat.commands.Leaderboard;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +24,9 @@ public class Main {
 
     static {
         commands.add(new Kick());
+        commands.add(new Ban());
+        commands.add(new Rank());
+        commands.add(new Leaderboard());
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -36,6 +42,17 @@ public class Main {
                 .withGateway(client ->
                         client.on(MessageCreateEvent.class, event -> {
                             Message message = event.getMessage();
+                            if (message.getAuthor().isPresent() && !message.getAuthor().get().isBot()) {
+                                String userId = message.getAuthor().get().getId().asString();
+                                boolean leveledUp = LevelManager.addXp(userId);
+                                if (leveledUp) {
+                                    int newLevel = LevelManager.getUserData(userId).getLevel();
+                                    message.getChannel()
+                                            .flatMap(channel -> channel.createMessage("🎉 Congratulations <@" + userId + ">, you've reached level **" + newLevel + "**!"))
+                                            .subscribe();
+                                }
+                            }
+
                             if (message.getAuthor().isPresent()) {
                                 System.out.println("Message from: " + message.getAuthor());
                             }
