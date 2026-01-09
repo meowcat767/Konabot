@@ -1,6 +1,8 @@
 package site.meowcat.commands;
 
+import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.message.MessageCreateEvent;
+import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.User;
 import reactor.core.publisher.Mono;
 import site.meowcat.LevelManager;
@@ -14,19 +16,36 @@ public class Rank implements Command {
 
     @Override
     public Mono<Void> execute(MessageCreateEvent event) {
-        User target = event.getMessage().getUserMentions().isEmpty() 
-            ? event.getMessage().getAuthor().orElse(null) 
-            : event.getMessage().getUserMentions().get(0);
+        Message message = event.getMessage();
 
-        if (target == null) return Mono.empty();
+        if (message.getAuthor().isEmpty() || message.getAuthor().get().isBot()) {
+            return Mono.empty();
+        }
 
-        UserData data = LevelManager.getUserData(target.getId().asString());
-        
-        return event.getMessage().getChannel().flatMap(channel -> 
-            channel.createMessage(String.format(
-                "📊 **%s's Progress**\nLevel: %d\nXP: %d",
-                target.getUsername(), data.getLevel(), data.getXp()
-            ))
-        ).then();
+        String guildId = event.getGuildId()
+                .map(Snowflake::asString)
+                .orElse(null);
+        if (guildId == null) {
+            return message.getChannel()
+                    .flatMap(channel -> channel.createMessage("❌ This command can only be used in a server."))
+                    .then();
+        }
+
+        // target user (mention or default to author)
+        String userId;
+        if (!message.getUserMentions().isEmpty()) {
+            userId = message.getUserMentions().get(0).getId().asString();
+        } else {
+            userId = message.getAuthor().get().getId().asString();
+        }
+
+        UserData data = LevelManager.getUserData(guildId, userId);
+
+        return message.getChannel()
+                .flatMap(channel -> channel.createMessage(
+                        "<@" + userId + "> is Level " + data.getLevel() + " with " + data.getXp() + " XP."
+                ))
+                .then();
     }
+
 }

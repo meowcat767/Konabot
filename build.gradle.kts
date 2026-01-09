@@ -27,8 +27,33 @@ dependencies {
 }
 
 application {
-    // Fully qualified main class
-    mainClass.set("site.meowcat.Main")
+    mainClass.set("site.meowcat.Main") // your fully qualified main class
+}
+
+// Make a fat/uber JAR
+tasks.register<Jar>("fatJar") {
+    group = "build"
+    archiveClassifier.set("all") // output will be mybot-1.0-all.jar
+
+    manifest {
+        attributes["Main-Class"] = "site.meowcat.Main"
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // Include compiled classes
+    from(sourceSets.main.get().output)
+
+    // Include runtime dependencies
+    dependsOn(configurations.runtimeClasspath)
+    from({
+        configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
+    })
+}
+
+// Optional: make `build` also build the fatJar
+tasks.build {
+    dependsOn("fatJar")
 }
 
 java {

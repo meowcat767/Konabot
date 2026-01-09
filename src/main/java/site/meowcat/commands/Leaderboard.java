@@ -2,6 +2,7 @@ package site.meowcat.commands;
 
 import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.message.MessageCreateEvent;
+import discord4j.core.object.entity.channel.MessageChannel;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import site.meowcat.LevelManager;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class Leaderboard implements Command {
+
     @Override
     public String getTrigger() {
         return ">leaderboard";
@@ -20,36 +22,55 @@ public class Leaderboard implements Command {
 
     @Override
     public Mono<Void> execute(MessageCreateEvent event) {
-        Map<String, UserData> allData = LevelManager.getAllUserData();
-        
+        String guildId = event.getGuildId()
+                .map(Snowflake::asString)
+                .orElse(null);
+        if (guildId == null) {
+            return event.getMessage().getChannel()
+                    .flatMap(c -> c.createMessage("❌ This command can only be used in a server."))
+                    .then();
+        }
+
+        // Get all users in this guild
+        Map<String, UserData> allData = LevelManager.getAllUserData()
+                .getOrDefault(guildId, Map.of());
+
+        // Sort by XP descending and take top 10
         List<Map.Entry<String, UserData>> sorted = allData.entrySet().stream()
-            .sorted(Comparator.comparingLong((Map.Entry<String, UserData> e) -> e.getValue().getXp()).reversed())
-            .limit(10)
-            .collect(Collectors.toList());
+                .sorted(Comparator.comparingLong((Map.Entry<String, UserData> e) -> e.getValue().getXp())
+                        .reversed())
+                .limit(10)
+                .collect(Collectors.toList());
 
         if (sorted.isEmpty()) {
             return event.getMessage().getChannel()
-                .flatMap(channel -> channel.createMessage("🏆 **Leaderboard**\nNo data yet!"))
-                .then();
+                    .flatMap(c -> c.createMessage("🏆 **Leaderboard**\nNo data yet!"))
+                    .then();
         }
 
+        // Build leaderboard message
         return Flux.fromIterable(sorted)
-            .concatMap(entry -> event.getClient().getUserById(Snowflake.of(entry.getKey()))
-                .map(user -> user.getUsername())
-                .onErrorReturn("Unknown User (" + entry.getKey() + ")")
-                .map(username -> new LeaderboardEntry(username, entry.getValue())))
-            .collectList()
-            .flatMap(entries -> {
-                StringBuilder sb = new StringBuilder("🏆 **Leaderboard**\n");
-                for (int i = 0; i < entries.size(); i++) {
-                    LeaderboardEntry entry = entries.get(i);
-                    sb.append(String.format("%d. %s - Level %d (%d XP)\n", 
-                        i + 1, entry.username, entry.data.getLevel(), entry.data.getXp()));
-                }
-                return event.getMessage().getChannel()
-                    .flatMap(channel -> channel.createMessage(sb.toString()));
-            })
-            .then();
+                .concatMap(entry ->
+                        event.getClient().getUserById(Snowflake.of(entry.getKey()))
+                                .map(user -> user.getUsername())
+                                .onErrorReturn("Unknown User (" + entry.getKey() + ")")
+                                .map(username -> new LeaderboardEntry(username, entry.getValue()))
+                )
+                .collectList()
+                .flatMap(entries -> {
+                    StringBuilder sb = new StringBuilder("🏆 **Leaderboard**\n");
+                    for (int i = 0; i < entries.size(); i++) {
+                        LeaderboardEntry entry = entries.get(i);
+                        sb.append(String.format("%d. %s - Level %d (%d XP)\n",
+                                i + 1,
+                                entry.username,
+                                entry.data.getLevel(),
+                                entry.data.getXp()));
+                    }
+                    return event.getMessage().getChannel()
+                            .flatMap(channel -> channel.createMessage(sb.toString()));
+                })
+                .then();
     }
 
     private static class LeaderboardEntry {
